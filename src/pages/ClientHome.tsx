@@ -219,6 +219,27 @@ export default function ClientHome() {
     } catch (e) {}
   };
 
+  const handleSearchAddress = async () => {
+    if (!custAddress) return;
+    setLocating(true);
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(custAddress)}&limit=1`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.length > 0) {
+          setCustLat(parseFloat(data[0].lat));
+          setCustLng(parseFloat(data[0].lon));
+        } else {
+          alert('Endereço não encontrado pelo nome. Tente ser mais específico ou arraste o pino no mapa.');
+        }
+      }
+    } catch(e) {
+      alert('Erro ao buscar endereço.');
+    } finally {
+      setLocating(false);
+    }
+  };
+
   const handleSendOrder = () => {
     if (!custName || !custWhatsapp) return alert('Preencha os dados!');
     addOrder({
@@ -460,8 +481,11 @@ export default function ClientHome() {
                     <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800">
                       <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 flex items-center gap-2"><MapPin className="w-4 h-4" /> Local de Entrega</p>
                       
-                      <div className="bg-zinc-50 dark:bg-zinc-800/50 p-1 rounded-xl flex items-center mb-3">
-                        <input value={custAddress} onChange={e => setCustAddress(e.target.value)} placeholder="Digite o endereço completo" className="h-10 bg-transparent flex-1 px-3 font-bold outline-none text-sm text-zinc-900 dark:text-white" />
+                      <div className="bg-zinc-50 dark:bg-zinc-800/50 p-1 rounded-xl flex items-center mb-3 border border-zinc-200 dark:border-zinc-700 focus-within:ring-2 ring-primary-500 transition-all">
+                        <input value={custAddress} onChange={e => setCustAddress(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearchAddress()} placeholder="Digite o endereço completo" className="h-10 bg-transparent flex-1 px-3 font-bold outline-none text-sm text-zinc-900 dark:text-white" />
+                        <button onClick={handleSearchAddress} disabled={locating || !custAddress} className="h-10 px-4 bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg text-xs font-black uppercase tracking-widest flex items-center gap-2 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors disabled:opacity-50">
+                          {locating ? <Navigation className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Buscar
+                        </button>
                       </div>
                       
                       <Button variant="outline" onClick={handleDetectLocation} disabled={locating} className="w-full h-12 rounded-xl border-dashed border-2 mb-3">
