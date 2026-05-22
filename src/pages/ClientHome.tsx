@@ -229,12 +229,11 @@ export default function ClientHome() {
       isPaid: false
     });
 
-    if (config.whatsapp) {
+    if (config.whatsapp && paymentMethod === 'pix') {
       const itemsList = cart.map(c => `• ${c.quantity}x ${c.product.name}`).join('\n');
       const mapLink = `https://www.google.com/maps/search/?api=1&query=${custLat},${custLng}`;
-      const changeMsg = paymentMethod === 'dinheiro' && changeFor ? `\n💵 *Troco para:* R$ ${changeFor}` : '';
       
-      const msg = `🛒 *NOVO PEDIDO*\n\n👤 *Cliente:* ${custName}\n📱 *WhatsApp:* ${custWhatsapp}\n📍 *Endereço:* ${custAddress}\n🗺️ *Localização GPS:* ${mapLink}\n\n*ITENS:*\n${itemsList}\n\n💰 *Subtotal:* ${formatCurrency(subtotal)}\n🛵 *Entrega:* ${formatCurrency(deliveryFee)}\n💵 *TOTAL COMPRA:* ${formatCurrency(total)}\n\n💳 *Pagamento:* ${paymentMethod}${changeMsg}`;
+      const msg = `🛒 *NOVO PEDIDO (PIX)*\n\n👤 *Cliente:* ${custName}\n📱 *WhatsApp:* ${custWhatsapp}\n📍 *Endereço:* ${custAddress}\n🗺️ *Localização GPS:* ${mapLink}\n\n*ITENS:*\n${itemsList}\n\n💰 *Subtotal:* ${formatCurrency(subtotal)}\n🛵 *Entrega:* ${formatCurrency(deliveryFee)}\n💵 *TOTAL COMPRA:* ${formatCurrency(total)}\n\n💳 *Chave PIX:* ${config.pixKey || 'Não informada'}\n\n⚠️ *Por favor, envie o comprovante de pagamento logo abaixo para confirmarmos seu pedido!*`;
       let waNumber = config.whatsapp.replace(/\D/g, '');
       if (waNumber.length <= 11) waNumber = '55' + waNumber;
       window.open(`https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`, '_blank');
