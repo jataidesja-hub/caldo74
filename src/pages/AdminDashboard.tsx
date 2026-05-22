@@ -1186,6 +1186,16 @@ function OrdersTab() {
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
+  const handleConfirmOrder = (o: typeof orders[0]) => {
+    updateOrderStatus(o.id, 'confirmed');
+    
+    let waNumber = o.customerWhatsapp.replace(/\D/g, '');
+    if (waNumber.length <= 11) waNumber = '55' + waNumber;
+    
+    const msg = `Olá *${o.customerName}*! Tudo bem?\nSeu pedido acabou de ser *CONFIRMADO* e já estamos preparando para você! 🍲🔥\n\n*Resumo do pedido:*\n${o.items.map((item) => `• ${item.quantity}x ${item.product.name}`).join('\n')}\n\n*Total:* ${formatCurrency(o.total)}`;
+    
+    window.open(`https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`, '_blank');
+  };
 
   return (
     <div className="space-y-4">
@@ -1265,7 +1275,7 @@ function OrdersTab() {
 
           <div className="flex gap-2 mt-6">
             {o.status === 'pending' && (
-              <Button size="sm" onClick={() => updateOrderStatus(o.id, 'confirmed')} className="rounded-xl px-6 h-10 shadow-lg shadow-primary-500/20">Confirmar Pedido</Button>
+              <Button size="sm" onClick={() => handleConfirmOrder(o)} className="rounded-xl px-6 h-10 shadow-lg shadow-primary-500/20">Confirmar Pedido</Button>
             )}
             {o.status === 'confirmed' && (
               <Button size="sm" onClick={() => updateOrderStatus(o.id, 'delivered')} className="rounded-xl px-6 h-10 bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-500/20 uppercase font-black text-[10px] tracking-widest">Marcar como Entregue</Button>

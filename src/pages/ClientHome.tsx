@@ -557,7 +557,7 @@ export default function ClientHome() {
 
       {/* DRAGGABLE WHATSAPP FIXED BTN */}
       <a
-        href={`https://wa.me/${config.whatsapp?.replace(/\D/g, '')}`}
+        href={`https://wa.me/${(config.whatsapp || '').replace(/\D/g, '').length <= 11 ? '55' + (config.whatsapp || '').replace(/\D/g, '') : (config.whatsapp || '').replace(/\D/g, '')}`}
         target="_blank" rel="noreferrer"
         onClick={(e) => {
           if (isDraggingWa) e.preventDefault();
