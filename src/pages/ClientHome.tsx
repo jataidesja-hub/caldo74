@@ -49,6 +49,8 @@ export default function ClientHome() {
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [viewingProduct, setViewingProduct] = useState<typeof products[0] | null>(null);
+  const [optionModalProduct, setOptionModalProduct] = useState<typeof products[0] | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [orderSent, setOrderSent] = useState(false);
   const [promoPopupOpen, setPromoPopupOpen] = useState(false);
   const [initialPromo, setInitialPromo] = useState<any>(null);
@@ -168,16 +170,38 @@ export default function ClientHome() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [activeCategory, searchTerm, products]);
 
-  const addToCart = (product: typeof products[0]) => {
+  const addToCart = (product: typeof products[0], opts?: Record<string, string>) => {
     if (!isOpen) { alert('Loja fechada!'); return; }
+    // If product has option groups and no options passed yet, open selection modal
+    if ((product.optionGroups?.length ?? 0) > 0 && !opts) {
+      setSelectedOptions({});
+      setOptionModalProduct(product);
+      return;
+    }
     setCart(prev => {
-      const existing = prev.find(c => c.product.id === product.id);
+      const existing = prev.find(c => c.product.id === product.id &&
+        JSON.stringify(c.selectedOptions) === JSON.stringify(opts || {}));
       if (product.stock !== undefined && product.stock !== null && (existing?.quantity || 0) >= product.stock) {
         alert('Estoque insuficiente!'); return prev;
       }
-      if (existing) return prev.map(c => c.product.id === product.id ? { ...c, quantity: c.quantity + 1 } : c);
-      return [...prev, { product, quantity: 1 }];
+      if (existing) return prev.map(c =>
+        c.product.id === product.id && JSON.stringify(c.selectedOptions) === JSON.stringify(opts || {})
+          ? { ...c, quantity: c.quantity + 1 } : c
+      );
+      return [...prev, { product, quantity: 1, selectedOptions: opts }];
     });
+  };
+
+  const handleConfirmOptions = () => {
+    if (!optionModalProduct) return;
+    // Check all required groups have a selection
+    const missing = (optionModalProduct.optionGroups || []).filter(g => g.required && !selectedOptions[g.id]);
+    if (missing.length > 0) {
+      alert(`Selecione: ${missing.map(g => g.name).join(', ')}`);
+      return;
+    }
+    addToCart(optionModalProduct, selectedOptions);
+    setOptionModalProduct(null);
   };
 
   const updateQuantity = (productId: string, delta: number) => {
@@ -251,7 +275,10 @@ export default function ClientHome() {
     });
 
     if (config.whatsapp && paymentMethod === 'pix') {
-      const itemsList = cart.map(c => `• ${c.quantity}x ${c.product.name}`).join('\n');
+      const itemsList = cart.map(c => {
+        const opts = c.selectedOptions ? Object.values(c.selectedOptions).join(', ') : '';
+        return `• ${c.quantity}x ${c.product.name}${opts ? ` (${opts})` : ''}`;
+      }).join('\n');
       const mapLink = `https://www.google.com/maps/search/?api=1&query=${custLat},${custLng}`;
       
       const msg = `🛒 *NOVO PEDIDO (PIX)*\n\n👤 *Cliente:* ${custName}\n📱 *WhatsApp:* ${custWhatsapp}\n📍 *Endereço:* ${custAddress}\n🗺️ *Localização GPS:* ${mapLink}\n\n*ITENS:*\n${itemsList}\n\n💰 *Subtotal:* ${formatCurrency(subtotal)}\n🛵 *Entrega:* ${formatCurrency(deliveryFee)}\n💵 *TOTAL COMPRA:* ${formatCurrency(total)}\n\n💳 *Chave PIX:* ${config.pixKey || 'Não informada'}\n\n⚠️ *Por favor, envie o comprovante de pagamento logo abaixo para confirmarmos seu pedido!*`;
@@ -445,6 +472,9 @@ export default function ClientHome() {
                   <img src={item.product.imageUrl || '/placeholder.png'} className="w-20 h-20 rounded-xl object-cover shrink-0" />
                   <div className="flex-1 min-w-0">
                     <h4 className="font-black text-sm uppercase tracking-tight truncate">{item.product.name}</h4>
+                    {item.selectedOptions && Object.values(item.selectedOptions).length > 0 && (
+                      <p className="text-[10px] text-zinc-500 font-bold mt-0.5">{Object.values(item.selectedOptions).join(' • ')}</p>
+                    )}
                     <p className="font-black text-base mt-1" style={{ color: config.primaryColor }}>{formatCurrency(getPromoPrice(item.product.id, item.product.price) ?? item.product.price)}</p>
                     <div className="flex items-center gap-3 mt-3">
                       <button onClick={() => updateQuantity(item.product.id, -1)} className="w-8 h-8 rounded-lg bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center active:scale-90"><Minus className="w-4 h-4" /></button>
@@ -575,6 +605,43 @@ export default function ClientHome() {
           <div className="flex gap-2">
             <button onClick={() => setShowInstallBanner(false)} className="px-3 py-2 text-xs font-bold text-zinc-400">Agora não</button>
             <button onClick={handleInstallClick} className="px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-950 rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-90">Instalar</button>
+          </div>
+        </div>
+      )}
+
+      {/* OPTIONS SELECTION MODAL */}
+      {optionModalProduct && (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in" onClick={() => setOptionModalProduct(null)}>
+          <div className="bg-white dark:bg-zinc-900 rounded-[2rem] w-full max-w-sm p-8 space-y-6 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <div>
+              <h2 className="text-2xl font-black italic uppercase tracking-tighter">{optionModalProduct.name}</h2>
+              <p className="text-sm text-zinc-500 mt-1">Personalize seu pedido</p>
+            </div>
+            {(optionModalProduct.optionGroups || []).map(g => (
+              <div key={g.id} className="space-y-2">
+                <p className="text-xs font-black uppercase tracking-widest text-zinc-500 flex items-center gap-2">
+                  {g.name}
+                  {g.required && <span className="text-red-500 text-[10px] font-black">Obrigatório</span>}
+                </p>
+                <div className="flex flex-col gap-2">
+                  {g.options.map(o => (
+                    <button key={o.id}
+                      onClick={() => setSelectedOptions(prev => ({ ...prev, [g.id]: o.name }))}
+                      className={`w-full h-12 rounded-xl border-2 font-bold text-sm transition-all active:scale-95 ${
+                        selectedOptions[g.id] === o.name
+                          ? 'border-transparent text-white shadow-lg'
+                          : 'border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800'
+                      }`}
+                      style={selectedOptions[g.id] === o.name ? { backgroundColor: config.primaryColor } : {}}
+                    >{o.name}</button>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <button onClick={handleConfirmOptions}
+              className="w-full h-14 rounded-2xl text-white font-black uppercase text-lg shadow-xl"
+              style={{ backgroundColor: config.primaryColor }}
+            >Adicionar ao Carrinho</button>
           </div>
         </div>
       )}

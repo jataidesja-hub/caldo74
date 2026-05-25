@@ -1,3 +1,15 @@
+export interface ProductOption {
+  id: string;
+  name: string;
+}
+
+export interface ProductOptionGroup {
+  id: string;
+  name: string;
+  required: boolean;
+  options: ProductOption[];
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -8,6 +20,7 @@ export interface Product {
   imageUrl: string;
   promoPrice?: number;
   externalUrl?: string;
+  optionGroups?: ProductOptionGroup[];
 }
 
 export interface Category {
@@ -25,7 +38,7 @@ export interface Promotion {
   productIds: string[];
   active: boolean;
   expiresAt?: string | null;
-  showOnStart?: boolean; // New field
+  showOnStart?: boolean;
 }
 
 export interface OpeningHours {
@@ -49,12 +62,13 @@ export interface StoreConfig {
   whatsapp: string;
   pixKey?: string;
   openingHours?: OpeningHours;
-  informativeText?: string; // New field
+  informativeText?: string;
 }
 
 export interface CartItem {
   product: Product;
   quantity: number;
+  selectedOptions?: Record<string, string>; // groupId -> option name
 }
 
 export interface Order {

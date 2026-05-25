@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "@/store/StoreContext";
-import { Product, Category, Promotion } from "@/types";
+import { Product, Category, Promotion, ProductOptionGroup, ProductOption } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { formatCurrency } from "@/lib/utils";
 import {
   Package, LayoutGrid, Settings, BarChart, Megaphone, Search,
   MapPin, Plus, Save, LogOut, Trash2, Edit, X, Upload, Image as ImageIcon,
   Palette, Type, Phone, Store, ClipboardList, Map, Send, Link as LinkIcon, Eye,
-  Printer, Radio, Clock, ExternalLink, Globe, Loader2
+  Printer, Radio, Clock, ExternalLink, Globe, Loader2, ListPlus, ChevronDown, ChevronUp
 } from "lucide-react";
 
 
@@ -263,10 +263,40 @@ function ProductsTab() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState({ name: '', description: '', price: '', stock: '', category: '', imageUrl: '', externalUrl: '' });
+  const [optionGroups, setOptionGroups] = useState<ProductOptionGroup[]>([]);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newOptionTexts, setNewOptionTexts] = useState<Record<string, string>>({});
   const [imagePreviewError, setImagePreviewError] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [activeCategory, setActiveCategory] = useState('Todas');
   const [fetchingOG, setFetchingOG] = useState(false);
+
+  const genOptId = () => Math.random().toString(36).slice(2, 9);
+
+  const addOptionGroup = () => {
+    if (!newGroupName.trim()) return;
+    setOptionGroups(prev => [...prev, { id: genOptId(), name: newGroupName.trim(), required: true, options: [] }]);
+    setNewGroupName('');
+  };
+
+  const removeOptionGroup = (gid: string) => setOptionGroups(prev => prev.filter(g => g.id !== gid));
+
+  const toggleGroupRequired = (gid: string) =>
+    setOptionGroups(prev => prev.map(g => g.id === gid ? { ...g, required: !g.required } : g));
+
+  const addOptionToGroup = (gid: string) => {
+    const text = (newOptionTexts[gid] || '').trim();
+    if (!text) return;
+    setOptionGroups(prev => prev.map(g =>
+      g.id === gid ? { ...g, options: [...g.options, { id: genOptId(), name: text }] } : g
+    ));
+    setNewOptionTexts(prev => ({ ...prev, [gid]: '' }));
+  };
+
+  const removeOptionFromGroup = (gid: string, oid: string) =>
+    setOptionGroups(prev => prev.map(g =>
+      g.id === gid ? { ...g, options: g.options.filter(o => o.id !== oid) } : g
+    ));
 
   const selectedCategory = categories.find(c => c.name === form.category);
   const isExternal = selectedCategory?.isExternalLinks ?? false;
@@ -284,6 +314,9 @@ function ProductsTab() {
   const openNew = () => {
     setEditing(null);
     setForm({ name: '', description: '', price: '', stock: '', category: categories[0]?.name || '', imageUrl: '', externalUrl: '' });
+    setOptionGroups([]);
+    setNewGroupName('');
+    setNewOptionTexts({});
     setImagePreviewError(false);
     setModalOpen(true);
   };
@@ -299,6 +332,9 @@ function ProductsTab() {
       imageUrl: p.imageUrl || '',
       externalUrl: p.externalUrl || ''
     });
+    setOptionGroups(p.optionGroups || []);
+    setNewGroupName('');
+    setNewOptionTexts({});
     setImagePreviewError(false);
     setModalOpen(true);
   };
@@ -336,6 +372,7 @@ function ProductsTab() {
       category: form.category,
       imageUrl: form.imageUrl.trim(),
       externalUrl: isExternal ? form.externalUrl.trim() : undefined,
+      optionGroups: optionGroups.length > 0 ? optionGroups : undefined,
     };
     if (editing) {
       updateProduct({ ...editing, ...data });
@@ -562,6 +599,60 @@ function ProductsTab() {
                 <p className="text-[10px] text-zinc-400 mt-1">Cole a URL acima para adicionar uma foto</p>
               </div>
             )}
+          </div>
+
+          {/* OPTION GROUPS */}
+          <div className="space-y-3 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5"><ListPlus className="w-3.5 h-3.5" /> Acompanhamentos / Opções</label>
+              <span className="text-[10px] text-zinc-400">Obrigatório = cliente deve escolher</span>
+            </div>
+
+            {optionGroups.map(g => (
+              <div key={g.id} className="bg-zinc-50 dark:bg-zinc-800 rounded-xl p-3 space-y-2 border border-zinc-200 dark:border-zinc-700">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-sm text-zinc-800 dark:text-zinc-200 flex-1">{g.name}</span>
+                  <button type="button" onClick={() => toggleGroupRequired(g.id)}
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-colors ${
+                      g.required ? 'bg-red-100 border-red-400 text-red-600 dark:bg-red-900/30 dark:border-red-700 dark:text-red-400' : 'bg-zinc-200 border-zinc-300 text-zinc-500 dark:bg-zinc-700 dark:border-zinc-600'
+                    }`}>
+                    {g.required ? 'Obrigatório' : 'Opcional'}
+                  </button>
+                  <button type="button" onClick={() => removeOptionGroup(g.id)} className="text-red-400 hover:text-red-600"><X className="w-4 h-4" /></button>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {g.options.map(o => (
+                    <span key={o.id} className="flex items-center gap-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg px-2 py-0.5 text-xs font-medium">
+                      {o.name}
+                      <button type="button" onClick={() => removeOptionFromGroup(g.id, o.id)} className="text-zinc-400 hover:text-red-500"><X className="w-3 h-3" /></button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Nova opção..."
+                    value={newOptionTexts[g.id] || ''}
+                    onChange={e => setNewOptionTexts(prev => ({ ...prev, [g.id]: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addOptionToGroup(g.id))}
+                    className="flex-1 h-8 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 text-xs outline-none focus:ring-1 ring-primary-500"
+                  />
+                  <button type="button" onClick={() => addOptionToGroup(g.id)} className="h-8 px-3 bg-primary-600 text-white rounded-lg text-xs font-bold hover:bg-primary-700">+ Add</button>
+                </div>
+              </div>
+            ))}
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Nome do grupo (ex: Acompanhamento)"
+                value={newGroupName}
+                onChange={e => setNewGroupName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addOptionGroup())}
+                className="flex-1 h-9 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 text-sm outline-none focus:ring-2 ring-primary-500"
+              />
+              <button type="button" onClick={addOptionGroup} className="h-9 px-4 bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900 rounded-xl text-xs font-black uppercase tracking-widest hover:opacity-80">+ Grupo</button>
+            </div>
           </div>
 
           <Button onClick={handleSave} className="w-full h-12 rounded-xl mt-4">
