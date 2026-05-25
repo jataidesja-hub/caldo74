@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { Product, Category, Promotion, StoreConfig, Order, OpeningHours } from '@/types';
 import { supabase } from '@/lib/supabase';
+import { formatCurrency } from '@/lib/utils';
 
 const STORE_ID = (import.meta as any).env.VITE_STORE_ID || '1';
 console.log(`[Store] Initialized for Store ID: ${STORE_ID}`);
@@ -72,7 +73,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [realtimeStatus, setRealtimeStatus] = useState('connecting');
+  const configRef = useRef<StoreConfig>(DEFAULT_CONFIG);
+  useEffect(() => { configRef.current = config; }, [config]);
 
+  const autoPrintOrder = (o: Order) => {
+    try {
+      const cfg = configRef.current;
+      const paymentLabels: Record<string, string> = {
+        pix: 'PIX', dinheiro: 'Dinheiro', cartao_credito: 'Cartão de Crédito', cartao_debito: 'Cartão de Débito'
+      };
+      const itemsHtml = (o.items || []).map((item: any) =>
+        `<tr><td style="padding:4px 0">${item.quantity}x ${item.product?.name || item.product_name || ''}</td><td style="text-align:right">${formatCurrency((item.product?.price || 0) * item.quantity)}</td></tr>`
+      ).join('');
+      const changeRow = o.paymentMethod === 'dinheiro' && o.changeFor
+        ? `<div style="color:#c2410c;font-weight:bold">Troco para: ${formatCurrency(o.changeFor)} (Voltar: ${formatCurrency(o.changeFor - o.total)})</div>`
+        : '';
+      const html = `<html><head><title>Pedido ${o.id}</title><style>
+        body{font-family:monospace;width:80mm;padding:10px;color:#000;font-size:12px}
+        .h{text-align:center;border-bottom:1px dashed #000;padding-bottom:8px;margin-bottom:8px;font-size:14px;font-weight:bold}
+        table{width:100%;border-collapse:collapse}
+        .tot{border-top:1px dashed #000;margin-top:6px;padding-top:6px;font-weight:bold;font-size:14px}
+      </style></head><body>
+        <div class="h">${cfg.name}<br/><small>${cfg.slogan || ''}</small></div>
+        <div><b>PEDIDO:</b> ${o.id.toUpperCase()}<br/>
+        <b>DATA:</b> ${new Date(o.createdAt).toLocaleString('pt-BR')}<br/>
+        <b>CLIENTE:</b> ${o.customerName}<br/>
+        <b>FONE:</b> ${o.customerWhatsapp}<br/>
+        <b>END:</b> ${o.customerAddress || 'Retirada'}</div>
+        <br/><table>${itemsHtml}</table>
+        <div class="tot">
+          <div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>${formatCurrency(o.subtotal)}</span></div>
+          <div style="display:flex;justify-content:space-between"><span>Entrega</span><span>${formatCurrency(o.deliveryFee)}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:16px"><span>TOTAL</span><span>${formatCurrency(o.total)}</span></div>
+        </div>
+        <br/><b>PAGAMENTO: ${paymentLabels[o.paymentMethod || 'pix']?.toUpperCase() || ''}</b><br/>
+        ${o.isPaid ? 'PAGO' : 'PAGAR NA ENTREGA'}<br/>${changeRow}
+        <br/><br/>Obrigado!
+      </body></html>`;
+      const w = window.open('', '_blank');
+      if (w) { w.document.write(html); w.document.close(); w.focus(); w.print(); w.onafterprint = () => w.close(); }
+    } catch(e) { console.error('autoPrint error', e); }
+  };
 
   // Initial load
   useEffect(() => {
@@ -147,6 +188,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `store_id=eq.${STORE_ID}` }, payload => {
         console.log('[Real-time] Orders changed', payload.eventType);
         if (payload.eventType === 'INSERT') {
+          autoPrintOrder(payload.new as Order);
           setOrdersState(prev => {
             if (prev.some(o => o.id === payload.new.id)) return prev;
             
