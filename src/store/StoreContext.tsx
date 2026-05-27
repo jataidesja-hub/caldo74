@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
-import { Product, Category, Promotion, StoreConfig, Order, OpeningHours } from '@/types';
+import { Product, Category, Promotion, StoreConfig, Order, OpeningHours, Adicional } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/utils';
 
@@ -55,7 +55,10 @@ interface StoreContextType {
   updateOrderPayment: (id: string, isPaid: boolean) => void;
   deleteOrder: (id: string) => void;
   uploadImage: (file: File) => Promise<string>;
-
+  adicionais: Adicional[];
+  addAdicional: (a: Omit<Adicional, 'id'>) => void;
+  updateAdicional: (a: Adicional) => void;
+  deleteAdicional: (id: string) => void;
   isLoading: boolean;
   isSaving: boolean;
   realtimeStatus: string;
@@ -70,6 +73,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [categories, setCategoriesState] = useState<Category[]>([]);
   const [promotions, setPromotionsState] = useState<Promotion[]>([]);
   const [orders, setOrdersState] = useState<Order[]>([]);
+  const [adicionais, setAdicionaisState] = useState<Adicional[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [realtimeStatus, setRealtimeStatus] = useState('connecting');
@@ -134,17 +138,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           console.warn("Config não encontrada no Supabase, usando padrão:", confErr);
         }
 
-        const [prodRes, catRes, promRes, ordRes] = await Promise.all([
+        const [prodRes, catRes, promRes, ordRes, adicRes] = await Promise.all([
           supabase.from('products').select('*').eq('store_id', STORE_ID),
           supabase.from('categories').select('*').eq('store_id', STORE_ID),
           supabase.from('promotions').select('*').eq('store_id', STORE_ID),
-          supabase.from('orders').select('*').eq('store_id', STORE_ID)
+          supabase.from('orders').select('*').eq('store_id', STORE_ID),
+          supabase.from('adicionais').select('*').eq('store_id', STORE_ID)
         ]);
 
         if (prodRes.data) setProductsState(prodRes.data);
         if (catRes.data) setCategoriesState(catRes.data);
         if (promRes.data) setPromotionsState(promRes.data);
         if (ordRes.data) setOrdersState(ordRes.data);
+        if (adicRes.data) setAdicionaisState(adicRes.data);
       } catch (err) {
         console.error("Erro ao carregar do Supabase:", err);
       } finally {
@@ -237,10 +243,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setRealtimeStatus(status);
       });
 
+    // Realtime para adicionais
+    const adicChannel = supabase
+      .channel('adicionais-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'adicionais', filter: `store_id=eq.${STORE_ID}` }, payload => {
+        if (payload.eventType === 'INSERT') setAdicionaisState(prev => prev.some(a => a.id === payload.new.id) ? prev : [...prev, payload.new as Adicional]);
+        if (payload.eventType === 'UPDATE') setAdicionaisState(prev => prev.map(a => a.id === payload.new.id ? { ...a, ...payload.new } as Adicional : a));
+        if (payload.eventType === 'DELETE') setAdicionaisState(prev => prev.filter(a => a.id !== payload.old.id));
+      })
+      .subscribe();
+
 
 
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(adicChannel);
     };
   }, []);
 
@@ -440,6 +457,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ADICIONAIS
+  const addAdicional = async (a: Omit<Adicional, 'id'>) => {
+    const newA = { id: genId(), store_id: STORE_ID, ...a };
+    setAdicionaisState(prev => [...prev, newA]);
+    setIsSaving(true);
+    const { error } = await supabase.from('adicionais').insert([newA]);
+    setIsSaving(false);
+    if (error) { alert('Erro ao criar adicional: ' + error.message); setAdicionaisState(prev => prev.filter(x => x.id !== newA.id)); }
+  };
+  const updateAdicional = async (a: Adicional) => {
+    const previous = adicionais.find(x => x.id === a.id);
+    setAdicionaisState(prev => prev.map(x => x.id === a.id ? a : x));
+    setIsSaving(true);
+    const { error } = await supabase.from('adicionais').upsert({ ...a, store_id: STORE_ID });
+    setIsSaving(false);
+    if (error && previous) { alert('Erro ao atualizar adicional: ' + error.message); setAdicionaisState(prev => prev.map(x => x.id === a.id ? previous : x)); }
+  };
+  const deleteAdicional = async (id: string) => {
+    const previous = adicionais.find(x => x.id === id);
+    setAdicionaisState(prev => prev.filter(x => x.id !== id));
+    setIsSaving(true);
+    const { error } = await supabase.from('adicionais').delete().eq('id', id);
+    setIsSaving(false);
+    if (error && previous) { alert('Erro ao excluir adicional: ' + error.message); setAdicionaisState(prev => [...prev, previous]); }
+  };
+
 
 
   return (
@@ -449,6 +492,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       categories, setCategories, addCategory, deleteCategory,
       promotions, setPromotions, addPromotion, updatePromotion, deletePromotion,
       orders, addOrder, updateOrderStatus, updateOrderPayment, deleteOrder,
+      adicionais, addAdicional, updateAdicional, deleteAdicional,
       uploadImage, isLoading, isSaving, realtimeStatus
 
 

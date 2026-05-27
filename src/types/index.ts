@@ -10,6 +10,14 @@ export interface ProductOptionGroup {
   options: ProductOption[];
 }
 
+export interface Adicional {
+  id: string;
+  name: string;
+  price: number;
+  linkedCategories: string[];
+  linkedProductIds: string[];
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -69,6 +77,7 @@ export interface CartItem {
   product: Product;
   quantity: number;
   selectedOptions?: Record<string, string>; // groupId -> option name
+  selectedAdicionais?: Adicional[];
 }
 
 export interface Order {

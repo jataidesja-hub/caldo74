@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "@/store/StoreContext";
-import { Product, Category, Promotion, ProductOptionGroup, ProductOption } from "@/types";
+import { Product, Category, Promotion, ProductOptionGroup, ProductOption, Adicional } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { formatCurrency } from "@/lib/utils";
 import {
   Package, LayoutGrid, Settings, BarChart, Megaphone, Search,
   MapPin, Plus, Save, LogOut, Trash2, Edit, X, Upload, Image as ImageIcon,
   Palette, Type, Phone, Store, ClipboardList, Map, Send, Link as LinkIcon, Eye,
-  Printer, Radio, Clock, ExternalLink, Globe, Loader2, ListPlus, ChevronDown, ChevronUp
+  Printer, Radio, Clock, ExternalLink, Globe, Loader2, ListPlus, ChevronDown, ChevronUp, UtensilsCrossed, DollarSign
 } from "lucide-react";
 
 
@@ -80,6 +80,7 @@ export default function AdminDashboard() {
     { id: 'pedidos', label: 'Pedidos', icon: ClipboardList },
     { id: 'produtos', label: 'Produtos', icon: Package },
     { id: 'categorias', label: 'Categorias', icon: LayoutGrid },
+    { id: 'adicionais', label: 'Adicionais', icon: UtensilsCrossed },
     { id: 'promocoes', label: 'Promoções', icon: Megaphone },
     { id: 'config', label: 'Configurações', icon: Settings },
   ];
@@ -159,6 +160,7 @@ export default function AdminDashboard() {
         {activeTab === 'pedidos' && <OrdersTab />}
         {activeTab === 'produtos' && <ProductsTab />}
         {activeTab === 'categorias' && <CategoriesTab />}
+        {activeTab === 'adicionais' && <AdicionaisTab />}
         {activeTab === 'promocoes' && <PromotionsTab />}
         {activeTab === 'config' && <ConfigTab />}
       </main>
@@ -657,6 +659,124 @@ function ProductsTab() {
 
           <Button onClick={handleSave} className="w-full h-12 rounded-xl mt-4">
             <Save className="w-5 h-5 mr-2" /> {editing ? 'Salvar Alterações' : 'Cadastrar Produto'}
+          </Button>
+        </div>
+      </Modal>
+    </>
+  );
+}
+
+/* ═══════════════════════ ADICIONAIS TAB ═══════════════════════ */
+function AdicionaisTab() {
+  const { adicionais, addAdicional, updateAdicional, deleteAdicional, categories, products, config } = useStore();
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<Adicional | null>(null);
+  const [form, setForm] = useState({ name: '', price: '', linkedCategories: [] as string[], linkedProductIds: [] as string[] });
+
+  const openNew = () => {
+    setEditing(null);
+    setForm({ name: '', price: '0', linkedCategories: [], linkedProductIds: [] });
+    setModalOpen(true);
+  };
+  const openEdit = (a: Adicional) => {
+    setEditing(a);
+    setForm({ name: a.name, price: a.price.toString(), linkedCategories: a.linkedCategories, linkedProductIds: a.linkedProductIds });
+    setModalOpen(true);
+  };
+  const handleSave = () => {
+    if (!form.name.trim()) return alert('Preencha o nome!');
+    const data = { name: form.name.trim(), price: parseFloat(form.price) || 0, linkedCategories: form.linkedCategories, linkedProductIds: form.linkedProductIds };
+    if (editing) updateAdicional({ ...editing, ...data });
+    else addAdicional(data);
+    setModalOpen(false);
+  };
+  const toggleCat = (cat: string) => setForm(f => ({
+    ...f, linkedCategories: f.linkedCategories.includes(cat) ? f.linkedCategories.filter(c => c !== cat) : [...f.linkedCategories, cat]
+  }));
+  const toggleProd = (id: string) => setForm(f => ({
+    ...f, linkedProductIds: f.linkedProductIds.includes(id) ? f.linkedProductIds.filter(x => x !== id) : [...f.linkedProductIds, id]
+  }));
+
+  return (
+    <>
+      <div className="flex justify-end mb-6">
+        <Button onClick={openNew} className="rounded-xl"><Plus className="w-5 h-5 mr-2" /> Novo Adicional</Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {adicionais.map(a => {
+          const linkedCatNames = a.linkedCategories || [];
+          const linkedProdNames = (a.linkedProductIds || []).map(id => products.find(p => p.id === id)?.name).filter(Boolean);
+          return (
+            <div key={a.id} className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 p-5 shadow-sm hover:shadow-md transition-all">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h3 className="font-bold text-zinc-900 dark:text-white">{a.name}</h3>
+                  <p className="text-sm font-black mt-0.5" style={{ color: config.primaryColor }}>
+                    {a.price > 0 ? `+ ${formatCurrency(a.price)}` : 'Grátis'}
+                  </p>
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={() => openEdit(a)} className="p-2 text-zinc-400 hover:text-blue-500 transition-colors"><Edit className="w-4 h-4" /></button>
+                  <button onClick={() => { if (confirm('Excluir?')) deleteAdicional(a.id); }} className="p-2 text-zinc-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {linkedCatNames.map(c => (
+                  <span key={c} className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">{c}</span>
+                ))}
+                {linkedProdNames.map((n, i) => (
+                  <span key={i} className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">{n}</span>
+                ))}
+                {linkedCatNames.length === 0 && linkedProdNames.length === 0 && (
+                  <span className="text-[10px] text-zinc-400">Sem vínculo</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        {adicionais.length === 0 && (
+          <div className="col-span-3 text-center py-16 text-zinc-400">
+            <UtensilsCrossed className="w-12 h-12 mx-auto mb-3 opacity-20" />
+            <p className="font-bold">Nenhum adicional cadastrado</p>
+          </div>
+        )}
+      </div>
+
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Editar Adicional' : 'Novo Adicional'}>
+        <div className="space-y-4">
+          <InputField label="Nome do Adicional" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Queijo extra, Bacon, Farofa" />
+          <InputField label="Preço (R$) — 0 = Grátis" type="number" step="0.50" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} placeholder="0.00" />
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Vincular a Categorias (azul)</label>
+            <div className="flex flex-wrap gap-2">
+              {categories.map(c => (
+                <button key={c.id} type="button" onClick={() => toggleCat(c.name)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${form.linkedCategories.includes(c.name) ? 'bg-blue-600 text-white border-blue-600' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700'}`}>
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Vincular a Produtos Específicos (verde)</label>
+            <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
+              {products.filter(p => !p.externalUrl).map(p => (
+                <button key={p.id} type="button" onClick={() => toggleProd(p.id)}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-left border transition-all ${form.linkedProductIds.includes(p.id) ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 text-emerald-700 dark:text-emerald-400' : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400'}`}>
+                  <span className={`w-4 h-4 rounded flex items-center justify-center border-2 flex-shrink-0 ${form.linkedProductIds.includes(p.id) ? 'bg-emerald-500 border-emerald-500' : 'border-zinc-300 dark:border-zinc-600'}`}>
+                    {form.linkedProductIds.includes(p.id) && <span className="text-white text-[10px]">✓</span>}
+                  </span>
+                  {p.name} <span className="ml-auto text-xs text-zinc-400">{p.category}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <Button onClick={handleSave} className="w-full h-12 rounded-xl mt-2">
+            <Save className="w-5 h-5 mr-2" /> {editing ? 'Salvar' : 'Criar Adicional'}
           </Button>
         </div>
       </Modal>

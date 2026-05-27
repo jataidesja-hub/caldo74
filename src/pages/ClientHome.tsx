@@ -40,7 +40,7 @@ function PromoTimer({ expiresAt }: { expiresAt: string }) {
 }
 
 export default function ClientHome() {
-  const { config, products, categories, promotions, isLoading } = useStore();
+  const { config, products, categories, promotions, isLoading, adicionais } = useStore();
   const { addOrder } = useStore();
 
   const [activeCategory, setActiveCategory] = useState("Todos");
@@ -51,6 +51,7 @@ export default function ClientHome() {
   const [viewingProduct, setViewingProduct] = useState<typeof products[0] | null>(null);
   const [optionModalProduct, setOptionModalProduct] = useState<typeof products[0] | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
+  const [selectedAdicionais, setSelectedAdicionais] = useState<string[]>([]);
   const [orderSent, setOrderSent] = useState(false);
   const [promoPopupOpen, setPromoPopupOpen] = useState(false);
   const [initialPromo, setInitialPromo] = useState<any>(null);
@@ -172,9 +173,13 @@ export default function ClientHome() {
 
   const addToCart = (product: typeof products[0], opts?: Record<string, string>) => {
     if (!isOpen) { alert('Loja fechada!'); return; }
-    // If product has option groups and no options passed yet, open selection modal
-    if ((product.optionGroups?.length ?? 0) > 0 && !opts) {
+    // If product has option groups OR linked adicionais and no opts passed yet, open selection modal
+    const linkedAdic = adicionais.filter(a =>
+      a.linkedProductIds.includes(product.id) || a.linkedCategories.includes(product.category)
+    );
+    if (((product.optionGroups?.length ?? 0) > 0 || linkedAdic.length > 0) && !opts) {
       setSelectedOptions({});
+      setSelectedAdicionais([]);
       setOptionModalProduct(product);
       return;
     }
@@ -188,7 +193,7 @@ export default function ClientHome() {
         c.product.id === product.id && JSON.stringify(c.selectedOptions) === JSON.stringify(opts || {})
           ? { ...c, quantity: c.quantity + 1 } : c
       );
-      return [...prev, { product, quantity: 1, selectedOptions: opts }];
+      return [...prev, { product, quantity: 1, selectedOptions: opts, selectedAdicionais: (opts !== undefined ? adicionais.filter(a => selectedAdicionais.includes(a.id)) : []) }];
     });
   };
 
@@ -219,7 +224,11 @@ export default function ClientHome() {
 
   const removeFromCart = (productId: string) => setCart(prev => prev.filter(c => c.product.id !== productId));
   const cartCount = cart.reduce((acc, c) => acc + c.quantity, 0);
-  const subtotal = cart.reduce((acc, c) => acc + (getPromoPrice(c.product.id, c.product.price) ?? c.product.price) * c.quantity, 0);
+  const subtotal = cart.reduce((acc, c) => {
+    const basePrice = getPromoPrice(c.product.id, c.product.price) ?? c.product.price;
+    const adicPrice = (c.selectedAdicionais || []).reduce((s, a) => s + a.price, 0);
+    return acc + (basePrice + adicPrice) * c.quantity;
+  }, 0);
   const distance = (config?.lat && config?.lng && custLat && custLng) ? calculateDistance(config.lat, config.lng, custLat, custLng) : 0;
   const deliveryFee = distance * (config?.deliveryFeePerKm || 0);
   const total = subtotal + deliveryFee;
@@ -277,7 +286,9 @@ export default function ClientHome() {
     if (config.whatsapp && paymentMethod === 'pix') {
       const itemsList = cart.map(c => {
         const opts = c.selectedOptions ? Object.values(c.selectedOptions).join(', ') : '';
-        return `• ${c.quantity}x ${c.product.name}${opts ? ` (${opts})` : ''}`;
+        const adics = (c.selectedAdicionais || []).map(a => `${a.name}${a.price > 0 ? ` (+${formatCurrency(a.price)})` : ''}`).join(', ');
+        const extras = [opts, adics].filter(Boolean).join(' | ');
+        return `• ${c.quantity}x ${c.product.name}${extras ? ` (${extras})` : ''}`;
       }).join('\n');
       const mapLink = `https://www.google.com/maps/search/?api=1&query=${custLat},${custLng}`;
       
@@ -638,6 +649,38 @@ export default function ClientHome() {
                 </div>
               </div>
             ))}
+            {/* ADICIONAIS */}
+            {(() => {
+              const linkedAdic = optionModalProduct ? adicionais.filter(a =>
+                a.linkedProductIds.includes(optionModalProduct.id) || a.linkedCategories.includes(optionModalProduct.category)
+              ) : [];
+              if (linkedAdic.length === 0) return null;
+              return (
+                <div className="space-y-2">
+                  <p className="text-xs font-black uppercase tracking-widest text-zinc-500">Adicionais <span className="text-zinc-400 font-normal normal-case tracking-normal">(opcional)</span></p>
+                  <div className="flex flex-col gap-2">
+                    {linkedAdic.map(a => {
+                      const checked = selectedAdicionais.includes(a.id);
+                      return (
+                        <button key={a.id} type="button"
+                          onClick={() => setSelectedAdicionais(prev => checked ? prev.filter(x => x !== a.id) : [...prev, a.id])}
+                          className={`w-full flex items-center gap-3 px-4 h-12 rounded-xl border-2 font-bold text-sm transition-all text-left ${
+                            checked ? 'border-transparent text-white shadow-md' : 'border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800'
+                          }`}
+                          style={checked ? { backgroundColor: config.primaryColor } : {}}
+                        >
+                          <span className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${checked ? 'border-white bg-white/20' : 'border-current'}`}>
+                            {checked && <span className="text-[10px] font-black">✓</span>}
+                          </span>
+                          {a.name}
+                          {a.price > 0 && <span className="ml-auto font-black text-xs">{checked ? 'incl.' : `+ ${formatCurrency(a.price)}`}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
             <button onClick={handleConfirmOptions}
               className="w-full h-14 rounded-2xl text-white font-black uppercase text-lg shadow-xl"
               style={{ backgroundColor: config.primaryColor }}
