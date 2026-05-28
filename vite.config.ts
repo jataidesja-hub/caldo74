@@ -24,7 +24,7 @@ export default defineConfig({
 
       manifest: {
         name: 'Caldinho 74',
-        short_name: 'Caldo74',
+        short_name: 'Caldinho74',
         description: 'Painel do Cliente - Caldinho 74',
 
         theme_color: '#ffffff',
