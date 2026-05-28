@@ -8,7 +8,7 @@ import {
   Package, LayoutGrid, Settings, BarChart, Megaphone, Search,
   MapPin, Plus, Save, LogOut, Trash2, Edit, X, Upload, Image as ImageIcon,
   Palette, Type, Phone, Store, ClipboardList, Map, Send, Link as LinkIcon, Eye,
-  Printer, Radio, Clock, ExternalLink, Globe, Loader2, ListPlus, ChevronDown, ChevronUp, UtensilsCrossed, DollarSign, Bell, Send as SendIcon, Calendar, Users, CheckCircle, AlertCircle
+  Printer, Radio, Clock, ExternalLink, Globe, Loader2, ListPlus, ChevronDown, ChevronUp, UtensilsCrossed, DollarSign, Bell, Calendar, Users, CheckCircle, AlertCircle
 } from "lucide-react";
 
 
@@ -995,7 +995,7 @@ function NotificationsTab() {
         </div>
         <div className="flex gap-3">
           <Button onClick={() => handleSaveAndSend(true)} disabled={!!sending} className="flex-1 h-12 rounded-xl">
-            {sending ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <SendIcon className="w-5 h-5 mr-2" />}
+            {sending ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Send className="w-5 h-5 mr-2" />}
             Enviar Agora
           </Button>
           <Button variant="outline" onClick={() => handleSaveAndSend(false)} disabled={!!sending} className="flex-1 h-12 rounded-xl">
