@@ -8,7 +8,7 @@ import {
   Package, LayoutGrid, Settings, BarChart, Megaphone, Search,
   MapPin, Plus, Save, LogOut, Trash2, Edit, X, Upload, Image as ImageIcon,
   Palette, Type, Phone, Store, ClipboardList, Map, Send, Link as LinkIcon, Eye,
-  Printer, Radio, Clock, ExternalLink, Globe, Loader2, ListPlus, ChevronDown, ChevronUp, UtensilsCrossed, DollarSign
+  Printer, Radio, Clock, ExternalLink, Globe, Loader2, ListPlus, ChevronDown, ChevronUp, UtensilsCrossed, DollarSign, Bell, Send as SendIcon, Calendar, Users, CheckCircle, AlertCircle
 } from "lucide-react";
 
 
@@ -82,6 +82,7 @@ export default function AdminDashboard() {
     { id: 'categorias', label: 'Categorias', icon: LayoutGrid },
     { id: 'adicionais', label: 'Adicionais', icon: UtensilsCrossed },
     { id: 'promocoes', label: 'Promoções', icon: Megaphone },
+    { id: 'notificacoes', label: 'Notificações', icon: Bell },
     { id: 'config', label: 'Configurações', icon: Settings },
   ];
 
@@ -162,6 +163,7 @@ export default function AdminDashboard() {
         {activeTab === 'categorias' && <CategoriesTab />}
         {activeTab === 'adicionais' && <AdicionaisTab />}
         {activeTab === 'promocoes' && <PromotionsTab />}
+        {activeTab === 'notificacoes' && <NotificationsTab />}
         {activeTab === 'config' && <ConfigTab />}
       </main>
     </div>
@@ -849,6 +851,191 @@ function CategoriesTab() {
               className="p-2 text-zinc-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 className="w-4 h-4" /></button>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════ NOTIFICATIONS TAB ═══════════════════════ */
+const STORE_ID_NOTIF = (import.meta as any).env.VITE_STORE_ID || 'caldo74';
+
+interface Notification {
+  id: string;
+  title: string;
+  body: string;
+  url: string;
+  scheduled_at: string | null;
+  sent_at: string | null;
+  status: string;
+  created_at: string;
+}
+
+function NotificationsTab() {
+  const { config } = useStore();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [subscribersCount, setSubscribersCount] = useState(0);
+  const [form, setForm] = useState({ title: '', body: '', url: '/', scheduled_at: '' });
+  const [sending, setSending] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    setLoading(true);
+    const { data: notifs } = await (await import('@/lib/supabase')).supabase
+      .from('notifications').select('*').eq('store_id', STORE_ID_NOTIF).order('created_at', { ascending: false });
+    const { count } = await (await import('@/lib/supabase')).supabase
+      .from('push_subscriptions').select('*', { count: 'exact', head: true }).eq('store_id', STORE_ID_NOTIF);
+    setNotifications(notifs || []);
+    setSubscribersCount(count || 0);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+
+  const handleSaveAndSend = async (sendNow: boolean) => {
+    if (!form.title.trim() || !form.body.trim()) return alert('Preencha título e mensagem!');
+    if (!sendNow && !form.scheduled_at) return alert('Escolha a data/hora para agendar!');
+
+    const id = genId();
+    const { supabase } = await import('@/lib/supabase');
+    await supabase.from('notifications').insert([{
+      id,
+      store_id: STORE_ID_NOTIF,
+      title: form.title,
+      body: form.body,
+      url: form.url || '/',
+      scheduled_at: sendNow ? null : new Date(form.scheduled_at).toISOString(),
+      status: 'pending'
+    }]);
+
+    if (sendNow) {
+      setSending(id);
+      try {
+        const res = await fetch('/api/send-notification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: form.title, body: form.body, url: form.url, notificationId: id })
+        });
+        const data = await res.json();
+        alert(`✅ Enviado para ${data.sent} dispositivo(s)!${data.failed > 0 ? ` (${data.failed} falhas)` : ''}`);
+      } catch(e) {
+        alert('Erro ao enviar. Verifique as variáveis de ambiente VAPID no Vercel.');
+      } finally {
+        setSending(null);
+      }
+    } else {
+      alert(`⏰ Agendado para ${new Date(form.scheduled_at).toLocaleString('pt-BR')}`);
+    }
+
+    setForm({ title: '', body: '', url: '/', scheduled_at: '' });
+    fetchData();
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Excluir notificação?')) return;
+    const { supabase } = await import('@/lib/supabase');
+    await supabase.from('notifications').delete().eq('id', id);
+    fetchData();
+  };
+
+  const statusColor: Record<string, string> = {
+    sent: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    failed: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+  };
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+      {/* STATS */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 border border-zinc-100 dark:border-zinc-800 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: config.primaryColor + '20' }}>
+            <Users className="w-6 h-6" style={{ color: config.primaryColor }} />
+          </div>
+          <div>
+            <p className="text-2xl font-black text-zinc-900 dark:text-white">{subscribersCount}</p>
+            <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Inscritos</p>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 border border-zinc-100 dark:border-zinc-800 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-emerald-50 dark:bg-emerald-900/20">
+            <CheckCircle className="w-6 h-6 text-emerald-500" />
+          </div>
+          <div>
+            <p className="text-2xl font-black text-zinc-900 dark:text-white">{notifications.filter(n => n.status === 'sent').length}</p>
+            <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Enviadas</p>
+          </div>
+        </div>
+      </div>
+
+      {/* COMPOSE */}
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 p-6 space-y-4">
+        <h3 className="font-black text-lg text-zinc-900 dark:text-white flex items-center gap-2"><Bell className="w-5 h-5" /> Nova Notificação</h3>
+        <InputField label="Título" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Ex: Promoção especial hoje!" />
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Mensagem</label>
+          <textarea
+            value={form.body}
+            onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
+            placeholder="Ex: Caldinho de feijão com 20% OFF até às 22h!"
+            rows={3}
+            className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 outline-none focus:ring-2 ring-primary-500 transition-all resize-none text-zinc-900 dark:text-white text-sm"
+          />
+        </div>
+        <InputField label="Link ao clicar (opcional)" value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="/" />
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> Agendar para (deixe vazio para enviar agora)</label>
+          <input
+            type="datetime-local"
+            value={form.scheduled_at}
+            onChange={e => setForm(f => ({ ...f, scheduled_at: e.target.value }))}
+            className="w-full h-12 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 outline-none focus:ring-2 ring-primary-500 transition-all text-zinc-900 dark:text-white"
+          />
+        </div>
+        <div className="flex gap-3">
+          <Button onClick={() => handleSaveAndSend(true)} disabled={!!sending} className="flex-1 h-12 rounded-xl">
+            {sending ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <SendIcon className="w-5 h-5 mr-2" />}
+            Enviar Agora
+          </Button>
+          <Button variant="outline" onClick={() => handleSaveAndSend(false)} disabled={!!sending} className="flex-1 h-12 rounded-xl">
+            <Calendar className="w-5 h-5 mr-2" /> Agendar
+          </Button>
+        </div>
+        <p className="text-[10px] text-zinc-400 text-center">O envio agendado é verificado automaticamente a cada 5 minutos pelo servidor.</p>
+      </div>
+
+      {/* HISTORY */}
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 overflow-hidden">
+        <div className="p-5 border-b border-zinc-100 dark:border-zinc-800">
+          <h3 className="font-black text-zinc-900 dark:text-white">Histórico</h3>
+        </div>
+        {loading ? (
+          <div className="p-8 text-center"><Loader2 className="w-8 h-8 mx-auto animate-spin text-zinc-400" /></div>
+        ) : notifications.length === 0 ? (
+          <div className="p-8 text-center text-zinc-400"><Bell className="w-10 h-10 mx-auto mb-2 opacity-20" /><p className="font-bold">Nenhuma notificação ainda</p></div>
+        ) : (
+          <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {notifications.map(n => (
+              <div key={n.id} className="p-4 flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${statusColor[n.status] || statusColor.pending}`}>
+                      {n.status === 'sent' ? 'Enviada' : n.status === 'pending' ? (n.scheduled_at ? '⏰ Agendada' : 'Pendente') : 'Falha'}
+                    </span>
+                    {n.scheduled_at && n.status === 'pending' && (
+                      <span className="text-[10px] text-zinc-500">{new Date(n.scheduled_at).toLocaleString('pt-BR')}</span>
+                    )}
+                    {n.sent_at && <span className="text-[10px] text-zinc-400">{new Date(n.sent_at).toLocaleString('pt-BR')}</span>}
+                  </div>
+                  <p className="font-bold text-sm text-zinc-900 dark:text-white">{n.title}</p>
+                  <p className="text-xs text-zinc-500 truncate">{n.body}</p>
+                </div>
+                <button onClick={() => handleDelete(n.id)} className="p-2 text-zinc-400 hover:text-red-500 flex-shrink-0"><Trash2 className="w-4 h-4" /></button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

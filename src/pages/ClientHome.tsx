@@ -10,6 +10,7 @@ import {
 
 import { Button } from "@/components/ui/Button";
 import { MapPicker } from "@/components/MapPicker";
+import { usePushSubscription } from "@/hooks/usePushSubscription";
 
 const APP_VERSION = "PWA-1.0.2";
 console.log(`[App] Running version: ${APP_VERSION}`);
@@ -42,6 +43,7 @@ function PromoTimer({ expiresAt }: { expiresAt: string }) {
 export default function ClientHome() {
   const { config, products, categories, promotions, isLoading, adicionais } = useStore();
   const { addOrder } = useStore();
+  usePushSubscription();
 
   const [activeCategory, setActiveCategory] = useState("Todos");
   const [searchTerm, setSearchTerm] = useState("");
