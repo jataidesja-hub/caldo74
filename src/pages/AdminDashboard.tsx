@@ -8,7 +8,7 @@ import {
   Package, LayoutGrid, Settings, BarChart, Megaphone, Search,
   MapPin, Plus, Save, LogOut, Trash2, Edit, X, Upload, Image as ImageIcon,
   Palette, Type, Phone, Store, ClipboardList, Map, Send, Link as LinkIcon, Eye,
-  Printer, Radio, Clock, ExternalLink, Globe, Loader2, ListPlus, ChevronDown, ChevronUp, UtensilsCrossed, DollarSign, Bell, Calendar, Users, CheckCircle, AlertCircle
+  Printer, Radio, Clock, ExternalLink, Globe, Loader2, ListPlus, ChevronDown, ChevronUp, UtensilsCrossed, DollarSign, Bell, Calendar, Users, CheckCircle, AlertCircle, RefreshCw
 } from "lucide-react";
 
 
@@ -891,7 +891,8 @@ function NotificationsTab() {
   const { config } = useStore();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [subscribersCount, setSubscribersCount] = useState(0);
-  const [form, setForm] = useState({ title: '', body: '', url: '/', scheduled_at: '' });
+  const [form, setForm] = useState({ title: '', body: '', url: '/', scheduled_dates: [] as string[] });
+  const [dateInput, setDateInput] = useState('');
   const [sending, setSending] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -912,21 +913,21 @@ function NotificationsTab() {
 
   const handleSaveAndSend = async (sendNow: boolean) => {
     if (!form.title.trim() || !form.body.trim()) return alert('Preencha título e mensagem!');
-    if (!sendNow && !form.scheduled_at) return alert('Escolha a data/hora para agendar!');
+    if (!sendNow && form.scheduled_dates.length === 0) return alert('Adicione pelo menos uma data para agendar!');
 
-    const id = genId();
     const { supabase } = await import('@/lib/supabase');
-    await supabase.from('notifications').insert([{
-      id,
-      store_id: STORE_ID_NOTIF,
-      title: form.title,
-      body: form.body,
-      url: form.url || '/',
-      scheduled_at: sendNow ? null : new Date(form.scheduled_at).toISOString(),
-      status: 'pending'
-    }]);
 
     if (sendNow) {
+      const id = genId();
+      await supabase.from('notifications').insert([{
+        id,
+        store_id: STORE_ID_NOTIF,
+        title: form.title,
+        body: form.body,
+        url: form.url || '/',
+        scheduled_at: null,
+        status: 'pending'
+      }]);
       setSending(id);
       try {
         const res = await fetch('/api/send-notification', {
@@ -942,11 +943,28 @@ function NotificationsTab() {
         setSending(null);
       }
     } else {
-      alert(`⏰ Agendado para ${new Date(form.scheduled_at).toLocaleString('pt-BR')}`);
+      const inserts = form.scheduled_dates.map(dateStr => ({
+        id: genId(),
+        store_id: STORE_ID_NOTIF,
+        title: form.title,
+        body: form.body,
+        url: form.url || '/',
+        scheduled_at: new Date(dateStr).toISOString(),
+        status: 'pending'
+      }));
+      await supabase.from('notifications').insert(inserts);
+      alert(`⏰ Agendado para ${form.scheduled_dates.length} data(s)!`);
     }
 
-    setForm({ title: '', body: '', url: '/', scheduled_at: '' });
+    setForm({ title: '', body: '', url: '/', scheduled_dates: [] });
+    setDateInput('');
     fetchData();
+  };
+
+  const handleResend = (n: Notification) => {
+    setForm({ title: n.title, body: n.body, url: n.url || '/', scheduled_dates: [] });
+    setDateInput('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (id: string) => {
@@ -1002,24 +1020,42 @@ function NotificationsTab() {
         </div>
         <InputField label="Link ao clicar (opcional)" value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="/" />
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> Agendar para (deixe vazio para enviar agora)</label>
-          <input
-            type="datetime-local"
-            value={form.scheduled_at}
-            onChange={e => setForm(f => ({ ...f, scheduled_at: e.target.value }))}
-            className="w-full h-12 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 outline-none focus:ring-2 ring-primary-500 transition-all text-zinc-900 dark:text-white"
-          />
+          <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> Agendamento (Múltiplas Datas)</label>
+          <div className="flex gap-2">
+            <input
+              type="datetime-local"
+              value={dateInput}
+              onChange={e => setDateInput(e.target.value)}
+              className="flex-1 h-12 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 outline-none focus:ring-2 ring-primary-500 transition-all text-zinc-900 dark:text-white"
+            />
+            <Button variant="outline" onClick={() => {
+              if (!dateInput) return;
+              if (form.scheduled_dates.includes(dateInput)) return;
+              setForm(f => ({ ...f, scheduled_dates: [...f.scheduled_dates, dateInput].sort() }));
+              setDateInput('');
+            }} className="h-12 rounded-xl px-6"><Plus className="w-5 h-5 mr-2" /> Adicionar</Button>
+          </div>
+          {form.scheduled_dates.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {form.scheduled_dates.map(d => (
+                <div key={d} className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-3 py-1.5 rounded-lg text-xs font-bold border border-blue-100 dark:border-blue-800">
+                  {new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                  <button onClick={() => setForm(f => ({ ...f, scheduled_dates: f.scheduled_dates.filter(x => x !== d) }))} className="hover:text-red-500"><X className="w-3.5 h-3.5" /></button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex gap-3">
           <Button onClick={() => handleSaveAndSend(true)} disabled={!!sending} className="flex-1 h-12 rounded-xl">
             {sending ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Send className="w-5 h-5 mr-2" />}
             Enviar Agora
           </Button>
-          <Button variant="outline" onClick={() => handleSaveAndSend(false)} disabled={!!sending} className="flex-1 h-12 rounded-xl">
-            <Calendar className="w-5 h-5 mr-2" /> Agendar
+          <Button variant="outline" onClick={() => handleSaveAndSend(false)} disabled={!!sending || form.scheduled_dates.length === 0} className="flex-1 h-12 rounded-xl border-blue-500 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+            <Calendar className="w-5 h-5 mr-2" /> Agendar {form.scheduled_dates.length > 0 && `(${form.scheduled_dates.length})`}
           </Button>
         </div>
-        <p className="text-[10px] text-zinc-400 text-center">O envio agendado é verificado automaticamente a cada 5 minutos pelo servidor.</p>
+        <p className="text-[10px] text-zinc-400 text-center">O envio agendado é disparado automaticamente quando o app for acessado ou reaberto no horário marcado.</p>
       </div>
 
       {/* HISTORY */}
@@ -1048,7 +1084,10 @@ function NotificationsTab() {
                   <p className="font-bold text-sm text-zinc-900 dark:text-white">{n.title}</p>
                   <p className="text-xs text-zinc-500 truncate">{n.body}</p>
                 </div>
-                <button onClick={() => handleDelete(n.id)} className="p-2 text-zinc-400 hover:text-red-500 flex-shrink-0"><Trash2 className="w-4 h-4" /></button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => handleResend(n)} className="p-2 text-zinc-400 hover:text-blue-500 flex-shrink-0" title="Reenviar / Duplicar"><RefreshCw className="w-4 h-4" /></button>
+                  <button onClick={() => handleDelete(n.id)} className="p-2 text-zinc-400 hover:text-red-500 flex-shrink-0" title="Excluir"><Trash2 className="w-4 h-4" /></button>
+                </div>
               </div>
             ))}
           </div>

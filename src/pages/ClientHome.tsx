@@ -114,6 +114,9 @@ export default function ClientHome() {
     if (savedAddress) setCustAddress(savedAddress);
     if (savedLat) setCustLat(Number(savedLat));
     if (savedLng) setCustLng(Number(savedLng));
+
+    // Poor man's cron: aciona o envio de notificações agendadas ao carregar a página
+    fetch('/api/check-scheduled', { method: 'POST' }).catch(() => {});
   }, []);
 
   useEffect(() => {
