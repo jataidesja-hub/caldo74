@@ -53,8 +53,10 @@ function TextArea({ label, ...props }: { label: string } & React.TextareaHTMLAtt
 /* ─── MAIN PAGE ─── */
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const { config, isLoading, realtimeStatus } = useStore();
+  const { config, isLoading, realtimeStatus, orders } = useStore();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [newOrderAlert, setNewOrderAlert] = useState(false);
+  const prevOrderCountRef = useRef(0);
 
 
   const [isAuthChecking, setIsAuthChecking] = useState(true);
@@ -67,6 +69,18 @@ export default function AdminDashboard() {
       setIsAuthChecking(false);
     }
   }, [navigate]);
+
+  // Detectar novo pedido
+  useEffect(() => {
+    if (prevOrderCountRef.current === 0) {
+      prevOrderCountRef.current = orders.length;
+      return;
+    }
+    if (orders.length > prevOrderCountRef.current) {
+      setNewOrderAlert(true);
+    }
+    prevOrderCountRef.current = orders.length;
+  }, [orders.length]);
 
   const handleLogout = () => {
     localStorage.removeItem("admin_auth");
@@ -102,16 +116,19 @@ export default function AdminDashboard() {
 
         <nav className="flex-1 space-y-1.5">
           {tabs.map((tab) => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            <button key={tab.id} onClick={() => { setActiveTab(tab.id); if (tab.id === 'pedidos') setNewOrderAlert(false); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
                 activeTab === tab.id
                   ? 'text-white shadow-lg'
                   : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-              }`}
+              } ${tab.id === 'pedidos' && newOrderAlert ? 'animate-pulse ring-2 ring-orange-400' : ''}`}
               style={activeTab === tab.id ? { backgroundColor: config.primaryColor } : {}}
             >
               <tab.icon className="w-5 h-5" />
               {tab.label}
+              {tab.id === 'pedidos' && newOrderAlert && (
+                <span className="ml-auto w-2.5 h-2.5 rounded-full bg-orange-500 animate-ping" />
+              )}
             </button>
           ))}
         </nav>
@@ -1045,21 +1062,22 @@ function NotificationsTab() {
 function PromotionsTab() {
   const { promotions, products, addPromotion, deletePromotion, updatePromotion } = useStore();
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ title: '', description: '', discountPercent: '10', productIds: [] as string[], expiresAt: '', showOnStart: false });
+  const [form, setForm] = useState({ title: '', description: '', discountPercent: '0', productIds: [] as string[], expiresAt: '', showOnStart: false, freeDelivery: false });
 
   const handleSave = () => {
     if (!form.title) return alert('Preencha o título!');
     addPromotion({ 
       title: form.title, 
       description: form.description, 
-      discountPercent: parseInt(form.discountPercent), 
+      discountPercent: parseInt(form.discountPercent) || 0, 
       productIds: form.productIds, 
       active: true,
       expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null,
-      showOnStart: form.showOnStart
+      showOnStart: form.showOnStart,
+      freeDelivery: form.freeDelivery
     });
     setModalOpen(false);
-    setForm({ title: '', description: '', discountPercent: '10', productIds: [], expiresAt: '', showOnStart: false });
+    setForm({ title: '', description: '', discountPercent: '0', productIds: [], expiresAt: '', showOnStart: false, freeDelivery: false });
   };
 
 
@@ -1084,7 +1102,10 @@ function PromotionsTab() {
                   <p className="text-xs font-bold text-orange-500 mt-1">Expira: {new Date(p.expiresAt).toLocaleString()}</p>
                 )}
               </div>
-              <span className="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-3 py-1 rounded-full text-sm font-bold">-{p.discountPercent}%</span>
+              <div className="flex flex-col items-end gap-1">
+                {p.discountPercent > 0 && <span className="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-3 py-1 rounded-full text-sm font-bold">-{p.discountPercent}%</span>}
+                {p.freeDelivery && <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-1 rounded-full text-xs font-bold">Frete Grátis</span>}
+              </div>
             </div>
             <div className="flex gap-2 flex-wrap mb-4">
               {p.productIds.map(pid => {
@@ -1124,6 +1145,13 @@ function PromotionsTab() {
             <div className="flex-1">
               <p className="text-sm font-bold text-zinc-900 dark:text-white">Destaque na Inicialização</p>
               <p className="text-[10px] text-zinc-500">Mostrar esta promoção em um popup quando o cliente abrir o app.</p>
+            </div>
+          </label>
+          <label className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl cursor-pointer border-2 border-blue-200 dark:border-blue-800">
+            <input type="checkbox" checked={form.freeDelivery} onChange={e => setForm(f => ({ ...f, freeDelivery: e.target.checked }))} className="w-5 h-5 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500" />
+            <div className="flex-1">
+              <p className="text-sm font-bold text-zinc-900 dark:text-white">Entrega Totalmente Grátis</p>
+              <p className="text-[10px] text-zinc-500">Zera a taxa de entrega para todos os pedidos enquanto esta promoção estiver ativa.</p>
             </div>
           </label>
           <div className="space-y-1.5">

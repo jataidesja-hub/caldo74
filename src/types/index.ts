@@ -48,6 +48,7 @@ export interface Promotion {
   active: boolean;
   expiresAt?: string | null;
   showOnStart?: boolean;
+  freeDelivery?: boolean;
 }
 
 export interface OpeningHours {

@@ -232,7 +232,8 @@ export default function ClientHome() {
     return acc + (basePrice + adicPrice) * c.quantity;
   }, 0);
   const distance = (config?.lat && config?.lng && custLat && custLng) ? calculateDistance(config.lat, config.lng, custLat, custLng) : 0;
-  const deliveryFee = distance * (config?.deliveryFeePerKm || 0);
+  const hasFreeDeliveryPromo = promotions.some(p => p.active && p.freeDelivery && (!p.expiresAt || new Date(p.expiresAt) > new Date()));
+  const deliveryFee = hasFreeDeliveryPromo ? 0 : distance * (config?.deliveryFeePerKm || 0);
   const total = subtotal + deliveryFee;
 
   const handleDetectLocation = () => {
