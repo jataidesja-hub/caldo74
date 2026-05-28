@@ -433,7 +433,7 @@ function ProductsTab() {
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {filteredProducts.map(p => (
-              <tr key={p.id} className="text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+              <tr key={p.id} className={`text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors ${p.available === false ? 'opacity-40' : ''}`}>
                 <td className="p-4">
                   <div className="w-12 h-12 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-800">
                     {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <ImageIcon className="w-6 h-6 m-3 text-zinc-400" />}
@@ -452,6 +452,17 @@ function ProductsTab() {
                   </span>
                 </td>
                 <td className="p-4 text-right space-x-1">
+                  <button
+                    onClick={() => updateProduct({ ...p, available: p.available === false ? true : false })}
+                    title={p.available === false ? 'Marcar como disponível' : 'Marcar como indisponível'}
+                    className={`p-2 rounded-lg text-xs font-black transition-colors ${
+                      p.available === false
+                        ? 'text-red-500 hover:text-emerald-500'
+                        : 'text-emerald-500 hover:text-red-500'
+                    }`}
+                  >
+                    {p.available === false ? 'INDISP.' : 'DISP.'}
+                  </button>
                   {p.externalUrl && (
                     <a href={p.externalUrl} target="_blank" rel="noopener noreferrer" className="inline-flex p-2 text-zinc-400 hover:text-blue-500 transition-colors" title="Abrir link externo"><ExternalLink className="w-5 h-5" /></a>
                   )}

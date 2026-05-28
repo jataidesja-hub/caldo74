@@ -409,9 +409,14 @@ export default function ClientHome() {
                   ) : (
                     /* ── CARD NORMAL (carrinho) ── */
                     <div key={p.id} className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm flex flex-col">
-                      <div onClick={() => setViewingProduct(p)} className="cursor-pointer aspect-square relative overflow-hidden">
-                        <img src={p.imageUrl || '/placeholder.png'} className={`w-full h-full object-cover ${(p.stock ?? 0) <= 0 ? 'grayscale opacity-50' : ''}`} />
-                        {pr && <div className="absolute top-2 left-2 bg-emerald-500 text-white px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Oferta</div>}
+                      <div onClick={() => p.available !== false && setViewingProduct(p)} className={`aspect-square relative overflow-hidden ${p.available === false ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                        <img src={p.imageUrl || '/placeholder.png'} className={`w-full h-full object-cover ${(p.stock ?? 0) <= 0 || p.available === false ? 'grayscale opacity-50' : ''}`} />
+                        {pr && p.available !== false && <div className="absolute top-2 left-2 bg-emerald-500 text-white px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Oferta</div>}
+                        {p.available === false && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="bg-red-600 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full shadow-lg">Indisponível</span>
+                          </div>
+                        )}
                       </div>
                       <div className="p-3 flex-1 flex flex-col">
                         <h3 onClick={() => setViewingProduct(p)} className="font-black text-sm uppercase leading-tight line-clamp-2 cursor-pointer mb-2">{p.name}</h3>
@@ -419,7 +424,7 @@ export default function ClientHome() {
                           <div className="flex flex-col">
                             {pr ? (<><span className="text-[10px] text-zinc-400 line-through leading-none">{formatCurrency(p.price)}</span><span className="text-sm sm:text-lg font-black leading-none" style={{ color: config.primaryColor }}>{formatCurrency(pr)}</span></>) : (<span className="text-sm sm:text-lg font-black leading-none" style={{ color: config.primaryColor }}>{formatCurrency(p.price)}</span>)}
                           </div>
-                          <button onClick={() => addToCart(p)} disabled={(p.stock ?? 0) <= 0 || !isOpen} className="w-10 h-10 flex items-center justify-center rounded-xl text-white shadow-lg active:scale-90 disabled:grayscale" style={{ backgroundColor: config.primaryColor }}><ShoppingCart className="w-5 h-5" /></button>
+                          <button onClick={() => addToCart(p)} disabled={(p.stock ?? 0) <= 0 || !isOpen || p.available === false} className="w-10 h-10 flex items-center justify-center rounded-xl text-white shadow-lg active:scale-90 disabled:grayscale" style={{ backgroundColor: config.primaryColor }}><ShoppingCart className="w-5 h-5" /></button>
                         </div>
                       </div>
                     </div>

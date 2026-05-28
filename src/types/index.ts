@@ -29,6 +29,7 @@ export interface Product {
   promoPrice?: number;
   externalUrl?: string;
   optionGroups?: ProductOptionGroup[];
+  available?: boolean;
 }
 
 export interface Category {
